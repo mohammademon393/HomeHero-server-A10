@@ -3,9 +3,9 @@ const app = express();
 const cors = require('cors');
 require('dotenv').config();
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
-
-
 const port = process.env.PORT || 5000;
+
+
 // ১. DNS সমস্যা সমাধানের জন্য এই দুটি লাইন যোগ করুন
 const dns = require('node:dns');
 dns.setServers(['8.8.8.8', '1.1.1.1']);
@@ -26,10 +26,16 @@ const client = new MongoClient(uri, {
     },
 });
 
+// collections
+let servicesCollection;
+let bookingsCollection;
+
 async function run() {
     try {
         await client.connect();
         console.log("MongoDB connected successfully ✅");
+
+
 
         const database = client.db("homeHeroDB");
         servicesCollection = database.collection("services");
@@ -119,6 +125,94 @@ async function run() {
             res.send(result);
         });
         
+
+        // bookings routes apis
+
+        // post a booking
+        app.post('/bookings', async (req, res) => {
+            const booking = req.body;
+
+            booking.status = "pending";   
+            booking.createdAt = new Date(); 
+
+            const result = await bookingsCollection.insertOne(booking);
+            res.send(result);
+        });
+
+        // get all bookings
+        app.get('/bookings', async (req, res) => {
+            const email = req.query.email;   // ✅ ADD THIS
+
+            let query = {};
+
+            if (email) {                     // ✅ ADD THIS BLOCK
+                query = { userEmail: email };
+            }
+
+            const bookings = await bookingsCollection.find(query).toArray();
+            res.send(bookings);
+        }); 
+
+        // get a booking by id
+        // get a booking by id
+        app.get('/bookings/:id', async (req, res) => {
+            const id = req.params.id;
+
+            if (!ObjectId.isValid(id)) {
+                return res.status(400).send({ message: "Invalid booking ID" });
+            }
+
+            const booking = await bookingsCollection.findOne({
+                _id: new ObjectId(id)
+            });
+
+            if (!booking) {
+                return res.status(404).send({ message: "Booking not found" });
+            }
+
+            res.send(booking);
+        });
+
+
+        // update booking status
+        app.patch('/bookings/:id', async (req, res) => {
+            const id = req.params.id;
+            const status = req.body.status;
+
+            if (!ObjectId.isValid(id)) {
+                return res.status(400).send({ message: "Invalid booking ID" });
+            }
+
+            const result = await bookingsCollection.updateOne(
+                { _id: new ObjectId(id) },
+                { $set: { status: status } }
+            );
+
+            res.send(result);
+        });
+
+
+        // delete booking
+        app.delete('/bookings/:id', async (req, res) => {
+            const id = req.params.id;
+
+            if (!ObjectId.isValid(id)) {
+                return res.status(400).send({ message: "Invalid booking ID" });
+            }
+
+            const result = await bookingsCollection.deleteOne({
+                _id: new ObjectId(id)
+            });
+
+            res.send(result);
+        });
+
+        
+
+        // root route
+        app.get('/', (req, res) => {
+            res.send("Backed server on running.. Welcome to HomeHero API");
+        });
 
 
     } catch (error) {
